@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
       floatingActionButton: const FloatingActionButton(
         onPressed: _onButtonPressed,
         tooltip: 'Adicionar tarefa',
-        child: Icon(Icons.delete),
+        child: Icon(Icons.add),
       ),
     );
   }
