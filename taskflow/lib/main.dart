@@ -1,7 +1,7 @@
 // Importa os widgets e recursos do Material Design do Flutter.
 import 'package:flutter/material.dart';
-// Importa a tela principal exibida ao iniciar o aplicativo.
-import 'package:taskflow/ui/home/home_screen.dart';
+// Importa a configuração compartilhada de navegação do aplicativo.
+import 'package:taskflow/app/router.dart';
 
 // Define o ponto de entrada da aplicação Dart.
 void main() {
@@ -17,7 +17,7 @@ class TaskFlowApp extends StatelessWidget {
   // Constrói a interface do widget raiz.
   @override
   Widget build(BuildContext context) {
-    // Configura o aplicativo Material com nome e tela inicial.
-    return const MaterialApp(title: 'TaskFlow', home: HomeScreen());
+    // Configura o aplicativo Material usando o GoRouter compartilhado.
+    return MaterialApp.router(title: 'TaskFlow', routerConfig: appRouter);
   } // Encerra a construção da interface.
 } // Encerra a declaração de TaskFlowApp.

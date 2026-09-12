@@ -1,5 +1,7 @@
 // Importa os widgets e recursos do Material Design do Flutter.
 import 'package:flutter/material.dart';
+// Importa as extensões de navegação do go_router.
+import 'package:go_router/go_router.dart';
 // Importa o modelo criado quando o formulário é salvo.
 import 'package:taskflow/domain/task.dart';
 
@@ -76,8 +78,8 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       createdAt: createdAt,
     ); // Encerra a criação da nova tarefa.
 
-    // Fecha o formulário e devolve a tarefa para a tela anterior.
-    Navigator.of(context).pop(task);
+    // Fecha o formulário e devolve a tarefa para a tela anterior pelo router.
+    context.pop(task);
   } // Encerra o método de salvamento.
 
   // Libera os recursos mantidos pelos controladores antes de destruir a tela.

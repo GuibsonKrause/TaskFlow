@@ -2,18 +2,31 @@
 import 'package:flutter/material.dart';
 // Importa as ferramentas oficiais de testes de widgets do Flutter.
 import 'package:flutter_test/flutter_test.dart';
+// Importa a configuração do router para redefinir a rota entre os testes.
+import 'package:taskflow/app/router.dart';
 // Importa o widget raiz que será testado.
 import 'package:taskflow/main.dart';
 
 // Define o ponto de entrada da suíte de testes.
 void main() {
-  // Declara o teste que verifica as tarefas exibidas inicialmente.
-  testWidgets('exibe a lista de tarefas locais', (tester) async {
+  // Declara o teste que verifica o caminho inicial e a lista local.
+  testWidgets('navega da Home para a lista de tarefas', (tester) async {
+    // Garante que o router comece na rota inicial.
+    appRouter.go('/');
     // Renderiza o aplicativo no ambiente de testes.
     await tester.pumpWidget(const TaskFlowApp());
 
-    // Confirma que o título do aplicativo aparece uma vez.
+    // Confirma que o título do aplicativo aparece na Home.
     expect(find.text('TaskFlow'), findsOneWidget);
+    // Confirma que o botão de entrada na lista aparece.
+    expect(find.text('Ver tarefas'), findsOneWidget);
+    // Pressiona o botão que usa o caminho /tasks.
+    await tester.tap(find.text('Ver tarefas'));
+    // Aguarda a navegação terminar.
+    await tester.pumpAndSettle();
+
+    // Confirma que a barra da lista foi exibida.
+    expect(find.text('Minhas tarefas'), findsOneWidget);
     // Confirma que as três tarefas iniciais são apresentadas em Cards.
     expect(find.byType(Card), findsNWidgets(3));
     // Confirma que cada Card contém um ListTile.
@@ -32,19 +45,24 @@ void main() {
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     // Confirma que existem dois ícones de tarefa pendente.
     expect(find.byIcon(Icons.pending), findsNWidgets(2));
-  }); // Encerra o teste da lista inicial.
+  }); // Encerra o teste da navegação inicial.
 
-  // Declara o teste do fluxo de validação e cadastro.
-  testWidgets('valida e cadastra uma nova tarefa', (tester) async {
+  // Declara o teste do fluxo de validação e cadastro via rotas.
+  testWidgets('valida, cadastra e retorna para a lista', (tester) async {
+    // Garante que o router comece na rota inicial.
+    appRouter.go('/');
     // Renderiza uma nova instância do aplicativo no ambiente de testes.
     await tester.pumpWidget(const TaskFlowApp());
-
-    // Pressiona o botão com ícone de adição.
+    // Abre a lista pelo botão da tela inicial.
+    await tester.tap(find.text('Ver tarefas'));
+    // Aguarda a navegação para a lista terminar.
+    await tester.pumpAndSettle();
+    // Pressiona o botão com ícone de adição da lista.
     await tester.tap(find.byIcon(Icons.add));
-    // Aguarda o término da animação de navegação.
+    // Aguarda a navegação para o formulário terminar.
     await tester.pumpAndSettle();
 
-    // Confirma que o formulário foi aberto.
+    // Confirma que o formulário foi aberto pela rota /tasks/new.
     expect(find.text('Nova tarefa'), findsOneWidget);
 
     // Digita um título menor que o mínimo permitido.
@@ -75,11 +93,11 @@ void main() {
     ); // Encerra o preenchimento da descrição.
     // Pressiona novamente o botão de salvamento.
     await tester.tap(find.text('Salvar'));
-    // Aguarda a navegação de volta e a reconstrução da Home.
+    // Aguarda a navegação de volta e a reconstrução da lista.
     await tester.pumpAndSettle();
 
-    // Confirma o retorno à tela principal.
-    expect(find.text('TaskFlow'), findsOneWidget);
+    // Confirma que a tela de tarefas foi restaurada.
+    expect(find.text('Minhas tarefas'), findsOneWidget);
     // Confirma que o título cadastrado aparece na lista.
     expect(find.text('Nova tarefa'), findsOneWidget);
     // Confirma que a descrição cadastrada aparece na lista.
