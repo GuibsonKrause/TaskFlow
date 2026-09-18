@@ -3,7 +3,7 @@ import 'package:go_router/go_router.dart';
 // Importa a tela inicial do aplicativo.
 import 'package:taskflow/ui/home/home_screen.dart';
 // Importa a tela que lista as tarefas.
-import 'package:taskflow/ui/tasks/task_list_screen.dart';
+import 'package:taskflow/ui/tasks/task_screen.dart';
 // Importa a tela de cadastro de tarefas.
 import 'package:taskflow/ui/task_form/task_form_screen.dart';
 
@@ -25,7 +25,7 @@ final GoRouter appRouter = GoRouter(
       // Define o endereço da lista de tarefas.
       path: '/tasks',
       // Constrói a lista quando o caminho de tarefas é acessado.
-      builder: (context, state) => const TaskListScreen(),
+      builder: (context, state) => const TaskScreen(),
     ), // Encerra a configuração da rota de tarefas.
     // Configura o caminho usado para cadastrar uma nova tarefa.
     GoRoute(
