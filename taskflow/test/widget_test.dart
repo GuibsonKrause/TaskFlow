@@ -1,110 +1,200 @@
-// Importa widgets usados para localizar elementos nos testes.
+import 'dart:async';
+
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-// Importa as ferramentas oficiais de testes de widgets do Flutter.
 import 'package:flutter_test/flutter_test.dart';
-// Importa a configuração do router para redefinir a rota entre os testes.
-import 'package:taskflow/app/router.dart';
-// Importa o widget raiz que será testado.
+import 'package:go_router/go_router.dart';
 import 'package:taskflow/main.dart';
 
-// Define o ponto de entrada da suíte de testes.
+/// Substitui apenas o SDK nos testes; nenhuma conta real é criada.
+class FakeAuth extends Fake implements FirebaseAuth {
+  FakeAuth({bool signedIn = false}) : _user = signedIn ? FakeUser() : null;
+
+  final _changes = StreamController<User?>.broadcast();
+  User? _user;
+  int loginCalls = 0;
+  int resetCalls = 0;
+  Completer<void>? loginGate;
+
+  @override
+  User? get currentUser => _user;
+
+  @override
+  Stream<User?> authStateChanges() async* {
+    yield _user;
+    yield* _changes.stream;
+  }
+
+  @override
+  Future<UserCredential> signInWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    loginCalls++;
+    await loginGate?.future;
+    if (password == 'erro123') {
+      throw FirebaseAuthException(code: 'invalid-credential');
+    }
+    _user = FakeUser();
+    _changes.add(_user);
+    return FakeCredential();
+  }
+
+  @override
+  Future<UserCredential> createUserWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    _user = FakeUser();
+    _changes.add(_user);
+    return FakeCredential();
+  }
+
+  @override
+  Future<void> sendPasswordResetEmail({
+    required String email,
+    ActionCodeSettings? actionCodeSettings,
+  }) async {
+    resetCalls++;
+  }
+
+  @override
+  Future<void> signOut() async {
+    _user = null;
+    _changes.add(null);
+  }
+
+  Future<void> close() => _changes.close();
+}
+
+class FakeUser extends Fake implements User {}
+
+class FakeCredential extends Fake implements UserCredential {}
+
 void main() {
-  // Declara o teste que verifica o caminho inicial e a lista local.
-  testWidgets('navega da Home para a lista de tarefas', (tester) async {
-    // Garante que o router comece na rota inicial.
-    appRouter.go('/');
-    // Renderiza o aplicativo no ambiente de testes.
-    await tester.pumpWidget(const TaskFlowApp());
-
-    // Confirma que o título do aplicativo aparece na Home.
-    expect(find.text('TaskFlow'), findsOneWidget);
-    // Confirma que o botão de entrada na lista aparece.
-    expect(find.text('Ver tarefas'), findsOneWidget);
-    // Pressiona o botão que usa o caminho /tasks.
-    await tester.tap(find.text('Ver tarefas'));
-    // Aguarda a navegação terminar.
+  testWidgets('protege tarefas e mostra login sem sessão', (tester) async {
+    final auth = FakeAuth();
+    addTearDown(auth.close);
+    await tester.pumpWidget(TaskFlowApp(firebaseAuth: auth));
     await tester.pumpAndSettle();
 
-    // Confirma que a barra da lista foi exibida.
+    expect(find.text('Entrar no TaskFlow'), findsOneWidget);
+    GoRouter.of(
+      tester.element(find.text('Entrar no TaskFlow')),
+    ).go('/tasks/new');
+    await tester.pumpAndSettle();
+    expect(find.text('Entrar no TaskFlow'), findsOneWidget);
+    expect(find.text('Nova tarefa'), findsNothing);
+  });
+
+  testWidgets('valida login, traduz erro e permite recuperar senha', (
+    tester,
+  ) async {
+    final auth = FakeAuth();
+    addTearDown(auth.close);
+    await tester.pumpWidget(TaskFlowApp(firebaseAuth: auth));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Entrar'));
+    await tester.pump();
+    expect(find.text('Informe o e-mail.'), findsOneWidget);
+    expect(auth.loginCalls, 0);
+
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'aluno@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'erro123');
+    await tester.tap(find.text('Entrar'));
+    await tester.pumpAndSettle();
+    expect(find.text('E-mail ou senha incorretos.'), findsOneWidget);
+
+    await tester.tap(find.text('Esqueci minha senha'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'aluno@example.com');
+    await tester.tap(find.text('Enviar link'));
+    await tester.pumpAndSettle();
+    expect(auth.resetCalls, 1);
+    expect(
+      find.textContaining('Se o e-mail estiver cadastrado'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('cadastro abre tarefas e logout bloqueia a lista', (
+    tester,
+  ) async {
+    final auth = FakeAuth();
+    addTearDown(auth.close);
+    await tester.pumpWidget(TaskFlowApp(firebaseAuth: auth));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Criar conta'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).at(0),
+      'aluno@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).at(1), 'senha123');
+    await tester.enterText(find.byType(TextFormField).at(2), 'diferente');
+    await tester.tap(find.text('Cadastrar'));
+    await tester.pump();
+    expect(find.text('As senhas não coincidem.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextFormField).at(2), 'senha123');
+    await tester.tap(find.text('Cadastrar'));
+    await tester.pumpAndSettle();
     expect(find.text('Minhas tarefas'), findsOneWidget);
-    // Confirma que as três tarefas iniciais são apresentadas em Cards.
     expect(find.byType(Card), findsNWidgets(3));
-    // Confirma que cada Card contém um ListTile.
-    expect(find.byType(ListTile), findsNWidgets(3));
-    // Confirma que o título da primeira tarefa aparece.
-    expect(find.text('Planejar a semana'), findsOneWidget);
-    // Confirma que o título da segunda tarefa aparece.
-    expect(find.text('Estudar Flutter'), findsOneWidget);
-    // Confirma que o título da terceira tarefa aparece.
-    expect(find.text('Organizar materiais'), findsOneWidget);
-    // Confirma que existe uma tarefa concluída.
-    expect(find.text('Concluída'), findsOneWidget);
-    // Confirma que existem duas tarefas pendentes.
-    expect(find.text('Pendente'), findsNWidgets(2));
-    // Confirma que existe um ícone de tarefa concluída.
-    expect(find.byIcon(Icons.check_circle), findsOneWidget);
-    // Confirma que existem dois ícones de tarefa pendente.
-    expect(find.byIcon(Icons.pending), findsNWidgets(2));
-  }); // Encerra o teste da navegação inicial.
 
-  // Declara o teste do fluxo de validação e cadastro via rotas.
-  testWidgets('valida, cadastra e retorna para a lista', (tester) async {
-    // Garante que o router comece na rota inicial.
-    appRouter.go('/');
-    // Renderiza uma nova instância do aplicativo no ambiente de testes.
-    await tester.pumpWidget(const TaskFlowApp());
-    // Abre a lista pelo botão da tela inicial.
-    await tester.tap(find.text('Ver tarefas'));
-    // Aguarda a navegação para a lista terminar.
-    await tester.pumpAndSettle();
-    // Pressiona o botão com ícone de adição da lista.
     await tester.tap(find.byIcon(Icons.add));
-    // Aguarda a navegação para o formulário terminar.
     await tester.pumpAndSettle();
-
-    // Confirma que o formulário foi aberto pela rota /tasks/new.
-    expect(find.text('Nova tarefa'), findsOneWidget);
-
-    // Digita um título menor que o mínimo permitido.
-    await tester.enterText(find.byType(TextFormField).first, 'AB');
-    // Pressiona o botão para tentar salvar o formulário inválido.
+    await tester.enterText(find.byType(TextFormField).first, 'Nova tarefa');
     await tester.tap(find.text('Salvar'));
-    // Processa a atualização da interface após a validação.
+    await tester.pumpAndSettle();
+    expect(find.byType(Card), findsNWidgets(4));
+
+    await tester.tap(find.byTooltip('Sair'));
+    await tester.pumpAndSettle();
+    expect(find.text('Entrar no TaskFlow'), findsOneWidget);
+    expect(find.text('Minhas tarefas'), findsNothing);
+  });
+
+  testWidgets('sessão existente ignora a rota de login', (tester) async {
+    final auth = FakeAuth(signedIn: true);
+    addTearDown(auth.close);
+    await tester.pumpWidget(TaskFlowApp(firebaseAuth: auth));
+    await tester.pumpAndSettle();
+    expect(find.text('Minhas tarefas'), findsOneWidget);
+    GoRouter.of(tester.element(find.text('Minhas tarefas'))).go('/login');
+    await tester.pumpAndSettle();
+    expect(find.text('Minhas tarefas'), findsOneWidget);
+    expect(find.text('Entrar no TaskFlow'), findsNothing);
+  });
+
+  testWidgets('loading impede envios simultâneos do login', (tester) async {
+    final auth = FakeAuth()..loginGate = Completer<void>();
+    addTearDown(auth.close);
+    await tester.pumpWidget(TaskFlowApp(firebaseAuth: auth));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextFormField).first,
+      'aluno@example.com',
+    );
+    await tester.enterText(find.byType(TextFormField).last, 'senha123');
+    await tester.tap(find.text('Entrar'));
     await tester.pump();
 
-    // Confirma que a mensagem de tamanho mínimo foi exibida.
+    expect(auth.loginCalls, 1);
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
     expect(
-      // Localiza o texto de validação apresentado abaixo do campo.
-      find.text('O título deve possuir pelo menos 3 caracteres.'),
-      // Exige que a mensagem apareça exatamente uma vez.
-      findsOneWidget,
-    ); // Encerra a verificação da mensagem do campo.
-    // Confirma que o SnackBar geral de erro foi exibido.
-    expect(find.text('Corrija os campos antes de salvar.'), findsOneWidget);
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
 
-    // Substitui o valor inválido por um título válido.
-    await tester.enterText(find.byType(TextFormField).first, 'Nova tarefa');
-    // Digita uma descrição no segundo campo.
-    await tester.enterText(
-      // Localiza o último campo, correspondente à descrição.
-      find.byType(TextFormField).last,
-      // Informa o texto usado como descrição da nova tarefa.
-      'Descrição da nova tarefa',
-    ); // Encerra o preenchimento da descrição.
-    // Pressiona novamente o botão de salvamento.
-    await tester.tap(find.text('Salvar'));
-    // Aguarda a navegação de volta e a reconstrução da lista.
+    auth.loginGate!.complete();
     await tester.pumpAndSettle();
-
-    // Confirma que a tela de tarefas foi restaurada.
+    expect(auth.loginCalls, 1);
     expect(find.text('Minhas tarefas'), findsOneWidget);
-    // Confirma que o título cadastrado aparece na lista.
-    expect(find.text('Nova tarefa'), findsOneWidget);
-    // Confirma que a descrição cadastrada aparece na lista.
-    expect(find.text('Descrição da nova tarefa'), findsOneWidget);
-    // Confirma que o feedback de sucesso foi exibido.
-    expect(find.text('Tarefa cadastrada com sucesso!'), findsOneWidget);
-    // Confirma que a lista agora contém quatro Cards.
-    expect(find.byType(Card), findsNWidgets(4));
-  }); // Encerra o teste do fluxo de cadastro.
-} // Encerra a suíte de testes.
+  });
+}

@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:taskflow/core/task_card.dart';
 // Importa o modelo retornado pela tela de cadastro.
 import 'package:taskflow/domain/task.dart';
+import 'package:taskflow/ui/auth/auth_view_model.dart';
 // Importa o ViewModel responsável pelo estado da tela.
 import 'package:taskflow/ui/tasks/task_view_model.dart';
 
@@ -15,6 +16,18 @@ import 'package:taskflow/ui/tasks/task_view_model.dart';
 class TaskScreen extends StatelessWidget {
   // Cria a tela de tarefas e permite o recebimento opcional de uma chave.
   const TaskScreen({super.key});
+
+  /// Solicita a saída e deixa o router reagir ao evento de autenticação.
+  Future<void> _logout(BuildContext context) async {
+    final auth = context.read<AuthViewModel>();
+    if (auth.isLoading) return;
+    final completed = await auth.logout();
+    if (!completed && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(auth.errorMessage ?? 'Não foi possível sair.')),
+      );
+    }
+  }
 
   // Abre o formulário e encaminha a tarefa retornada ao ViewModel.
   Future<void> _openTaskForm(BuildContext context) async {
@@ -46,11 +59,27 @@ class TaskScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     // Observa as tarefas e reconstrói a tela quando o ViewModel notificar.
     final tasks = context.watch<TaskViewModel>().tasks;
+    final isLoggingOut = context.watch<AuthViewModel>().isLoading;
 
     // Retorna a estrutura visual básica da página.
     return Scaffold(
       // Exibe o título da lista na barra superior.
-      appBar: AppBar(title: const Text('Minhas tarefas')),
+      appBar: AppBar(
+        title: const Text('Minhas tarefas'),
+        actions: [
+          IconButton(
+            tooltip: 'Sair',
+            onPressed: isLoggingOut ? null : () => _logout(context),
+            icon: isLoggingOut
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.logout),
+          ),
+        ],
+      ),
       // Cria uma lista rolável usando somente o estado exposto pelo ViewModel.
       body: ListView.separated(
         // Adiciona espaçamento ao redor de toda a lista.

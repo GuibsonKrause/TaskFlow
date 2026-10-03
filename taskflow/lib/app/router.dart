@@ -1,38 +1,52 @@
-// Importa a API atual do pacote go_router.
 import 'package:go_router/go_router.dart';
-// Importa a tela inicial do aplicativo.
+import 'package:taskflow/ui/auth/auth_view_model.dart';
+import 'package:taskflow/ui/auth/forgot_password_screen.dart';
+import 'package:taskflow/ui/auth/login_screen.dart';
+import 'package:taskflow/ui/auth/register_screen.dart';
+import 'package:taskflow/ui/auth/session_loading_screen.dart';
 import 'package:taskflow/ui/home/home_screen.dart';
-// Importa a tela que lista as tarefas.
-import 'package:taskflow/ui/tasks/task_screen.dart';
-// Importa a tela de cadastro de tarefas.
 import 'package:taskflow/ui/task_form/task_form_screen.dart';
+import 'package:taskflow/ui/tasks/task_screen.dart';
 
-// Cria uma única configuração compartilhada de navegação do aplicativo.
-final GoRouter appRouter = GoRouter(
-  // Define a rota inicial como a tela de boas-vindas.
+/// Cria um router para a sessão desta instância do aplicativo.
+GoRouter createAppRouter(AuthViewModel auth) => GoRouter(
   initialLocation: '/',
-  // Declara todas as rotas usando caminhos, sem named routes.
+  refreshListenable: auth,
+  redirect: (context, state) {
+    final location = state.matchedLocation;
+    if (!auth.isReady) {
+      return location == '/auth/loading' ? null : '/auth/loading';
+    }
+    final isAuthPage =
+        location == '/login' ||
+        location == '/register' ||
+        location == '/forgot-password';
+    if (auth.isAuthenticated) {
+      return isAuthPage || location == '/' || location == '/auth/loading'
+          ? '/tasks'
+          : null;
+    }
+    return isAuthPage ? null : '/login';
+  },
   routes: [
-    // Configura o caminho raiz do aplicativo.
+    GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
     GoRoute(
-      // Define o endereço da tela inicial.
-      path: '/',
-      // Constrói a tela inicial quando o caminho raiz é acessado.
-      builder: (context, state) => const HomeScreen(),
-    ), // Encerra a configuração da rota inicial.
-    // Configura o caminho que apresenta a lista de tarefas.
+      path: '/auth/loading',
+      builder: (context, state) => const SessionLoadingScreen(),
+    ),
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
-      // Define o endereço da lista de tarefas.
-      path: '/tasks',
-      // Constrói a lista quando o caminho de tarefas é acessado.
-      builder: (context, state) => const TaskScreen(),
-    ), // Encerra a configuração da rota de tarefas.
-    // Configura o caminho usado para cadastrar uma nova tarefa.
+      path: '/register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
     GoRoute(
-      // Define o endereço da tela de cadastro.
+      path: '/forgot-password',
+      builder: (context, state) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(path: '/tasks', builder: (context, state) => const TaskScreen()),
+    GoRoute(
       path: '/tasks/new',
-      // Constrói o formulário quando o caminho de cadastro é acessado.
       builder: (context, state) => const TaskFormScreen(),
-    ), // Encerra a configuração da rota de cadastro.
-  ], // Encerra a lista de rotas.
-); // Encerra a configuração única do GoRouter.
+    ),
+  ],
+);
